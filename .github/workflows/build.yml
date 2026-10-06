@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # only used to publish a release when a v* tag is pushed
+
+jobs:
+  build:
+    # An Apple Silicon (arm64) runner.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          uname -m
+
+      - name: Test
+        run: swift test
+
+      - name: Build app
+        run: ./build.sh
+
+      - name: Check the bundle
+        run: |
+          file build/MenuClip.app/Contents/MacOS/MenuClip
+          codesign --verify --verbose build/MenuClip.app
+          plutil -lint build/MenuClip.app/Contents/Info.plist
+
+      - name: Smoke test (launch, record a copy, save the history)
+        run: |
+          open build/MenuClip.app
+          for _ in $(seq 1 10); do pgrep -x MenuClip > /dev/null && break; sleep 1; done
+          pgrep -x MenuClip
+
+          marker="MenuClip smoke test $RANDOM"
+          printf '%s' "$marker" | pbcopy
+          history_file="$HOME/Library/Application Support/MenuClip/history.plist"
+          for _ in $(seq 1 15); do
+            [ -f "$history_file" ] && plutil -p "$history_file" | grep -q "$marker" && break
+            sleep 1
+          done
+          plutil -p "$history_file" | grep "$marker"
+
+          pgrep -x MenuClip > /dev/null || { echo "MenuClip stopped running"; exit 1; }
+          pkill -x MenuClip
+
+      - name: Zip
+        run: ditto -c -k --keepParent build/MenuClip.app build/MenuClip.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MenuClip-arm64
+          path: build/MenuClip.zip
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/MenuClip.zip \
+            --title "MenuClip $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Apple Silicon (arm64) build for macOS 13 or later. Not notarized: after unzipping and moving MenuClip.app to /Applications, run \`xattr -dr com.apple.quarantine /Applications/MenuClip.app\` once."
