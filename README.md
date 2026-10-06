@@ -94,7 +94,9 @@ swift run MenuClip  # run without making a bundle (paste needs the bundled app f
 |---|---|
 | History logic, models, storage, snippet XML (no AppKit, unit-tested) | `Sources/MenuClipCore/` |
 | Menu bar app: menus (`MenuController`), pasteboard polling (`ClipboardMonitor`), ⌘V (`PasteService`), global shortcuts via Carbon `RegisterEventHotKey` (`HotKeyCenter`), SwiftUI settings and snippet editor | `Sources/MenuClip/` |
-| CI on an Apple Silicon runner: tests, builds, launches and uploads the app; a `v*` tag also publishes a release | `.github/workflows/build.yml` |
+| CI on an Apple Silicon runner: tests, builds, launches and uploads the app | `.github/workflows/build.yml` |
+
+To publish a version, set `CFBundleShortVersionString` in `Resources/Info.plist`, then on GitHub choose **Releases → Draft a new release** and create a tag such as `v0.2.0`. When you publish it, CI builds the app and attaches `MenuClip.zip` to the release within a couple of minutes.
 
 Shortcuts and paste use fixed key codes (V is key code 9). That is correct for QWERTY layouts such as US and Italian. On Dvorak or AZERTY, the default shortcuts sit on a different physical key; re-record them in Settings.
 
